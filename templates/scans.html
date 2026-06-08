@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Attack Surface Scan Results</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #0a0f1e;
+            color: white;
+            padding: 24px;
+        }
+
+        .back-btn {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: #64748b;
+            text-decoration: none;
+            font-size: 13px;
+        }
+        .back-btn:hover { color: white; }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 6px;
+            color: #f1f5f9;
+        }
+        .subtitle {
+            color: #64748b;
+            font-size: 13px;
+            margin-bottom: 24px;
+        }
+
+        /* DEVICE CARDS */
+        .device-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .device-card {
+            background: #1e293b;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .device-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 20px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .device-header:hover { background: #273549; }
+
+        .device-header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .device-ip {
+            font-size: 16px;
+            font-weight: bold;
+            color: #f1f5f9;
+        }
+        .device-mac {
+            font-size: 12px;
+            color: #64748b;
+        }
+        .device-os {
+            font-size: 12px;
+            color: #94a3b8;
+            background: #0f172a;
+            padding: 3px 10px;
+            border-radius: 999px;
+        }
+
+        /* SCORE BADGE */
+        .score-badge {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 4px;
+        }
+        .score-number {
+            font-size: 20px;
+            font-weight: bold;
+        }
+        .score-label {
+            font-size: 11px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .score-bar-wrap {
+            background: #0f172a;
+            border-radius: 999px;
+            height: 6px;
+            width: 120px;
+        }
+        .score-bar {
+            height: 6px;
+            border-radius: 999px;
+            transition: width 0.4s ease;
+        }
+
+        /* DEVICE BODY */
+        .device-body {
+            display: none;
+            padding: 0 20px 20px 20px;
+            border-top: 1px solid #334155;
+        }
+        .device-body.open { display: block; }
+
+        .section {
+            margin-top: 16px;
+        }
+        .section h3 {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #64748b;
+            margin-bottom: 10px;
+        }
+
+        /* PORTS TABLE */
+        .ports-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .ports-table th {
+            background: #0f172a;
+            padding: 8px 10px;
+            text-align: left;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #64748b;
+        }
+        .ports-table td {
+            padding: 8px 10px;
+            border-bottom: 1px solid #1e293b;
+            font-size: 13px;
+        }
+        .port-number {
+            font-weight: bold;
+            color: #38bdf8;
+        }
+        .port-dangerous {
+            color: #ef4444;
+            font-weight: bold;
+        }
+        .port-warning {
+            font-size: 11px;
+            color: #94a3b8;
+            margin-top: 2px;
+        }
+
+        /* MISCONFIGS */
+        .misconfig-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .misconfig-item {
+            background: #0f172a;
+            border-radius: 8px;
+            padding: 12px 16px;
+            border-left: 4px solid #334155;
+        }
+        .misconfig-item.CRITICAL { border-left-color: #ff00ff; }
+        .misconfig-item.HIGH     { border-left-color: #ef4444; }
+        .misconfig-item.MEDIUM   { border-left-color: #facc15; }
+        .misconfig-item.LOW      { border-left-color: #22c55e; }
+
+        .misconfig-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 6px;
+        }
+        .misconfig-type {
+            font-size: 13px;
+            font-weight: bold;
+            color: #f1f5f9;
+        }
+        .misconfig-severity {
+            font-size: 11px;
+            font-weight: bold;
+            padding: 2px 8px;
+            border-radius: 999px;
+        }
+        .sev-CRITICAL { background: #2d0036; color: #ff00ff; }
+        .sev-HIGH     { background: #2d0a0a; color: #ef4444; }
+        .sev-MEDIUM   { background: #2d2200; color: #facc15; }
+        .sev-LOW      { background: #0a2d0a; color: #22c55e; }
+
+        .misconfig-detail {
+            font-size: 13px;
+            color: #94a3b8;
+            line-height: 1.5;
+        }
+
+        /* EMPTY STATE */
+        .empty {
+            text-align: center;
+            padding: 40px;
+            color: #64748b;
+            font-size: 14px;
+        }
+        .no-issues {
+            color: #22c55e;
+            font-size: 13px;
+            padding: 10px 0;
+        }
+
+        /* SCAN TIME */
+        .scan-time {
+            font-size: 11px;
+            color: #64748b;
+            margin-top: 4px;
+        }
+
+        .chevron {
+            color: #64748b;
+            font-size: 14px;
+            transition: transform 0.2s;
+        }
+        .chevron.open { transform: rotate(180deg); }
+    </style>
+</head>
+<body>
+
+<a href="/" class="back-btn">← Back to Dashboard</a>
+
+<h1>🔍 Attack Surface Scan Results</h1>
+<p class="subtitle">Detailed port scan and misconfiguration findings per device</p>
+
+{% if scan_results %}
+<div class="device-grid">
+    {% for scan in scan_results %}
+    <div class="device-card">
+
+        <!-- HEADER (clickable) -->
+        <div class="device-header" onclick="toggleCard('scan-{{ loop.index }}', 'chev-{{ loop.index }}')">
+            <div class="device-header-left">
+                <div>
+                    <div class="device-ip">{{ scan.ip }}</div>
+                    <div class="device-mac">{{ scan.mac }}</div>
+                    <div class="scan-time">Scanned: {{ scan.scanned_at }}</div>
+                </div>
+                {% if scan.os_guess and scan.os_guess != 'Unknown' %}
+                <div class="device-os">{{ scan.os_guess }}</div>
+                {% endif %}
+            </div>
+
+            <div style="display:flex;align-items:center;gap:20px;">
+                <div class="score-badge">
+                    <span class="score-label">Attack Surface Score</span>
+                    <span class="score-number" style="
+                        color: {% if scan.attack_surface_score >= 80 %}#ff00ff
+                               {% elif scan.attack_surface_score >= 60 %}#ef4444
+                               {% elif scan.attack_surface_score >= 35 %}#facc15
+                               {% elif scan.attack_surface_score >= 10 %}#22c55e
+                               {% else %}#94a3b8{% endif %};
+                    ">{{ scan.attack_surface_score }}</span>
+                    <div class="score-bar-wrap">
+                        <div class="score-bar" style="
+                            width: {{ scan.attack_surface_score }}%;
+                            background: {% if scan.attack_surface_score >= 80 %}#ff00ff
+                                        {% elif scan.attack_surface_score >= 60 %}#ef4444
+                                        {% elif scan.attack_surface_score >= 35 %}#facc15
+                                        {% elif scan.attack_surface_score >= 10 %}#22c55e
+                                        {% else %}#334155{% endif %};
+                        "></div>
+                    </div>
+                </div>
+                <span class="chevron" id="chev-{{ loop.index }}">▼</span>
+            </div>
+        </div>
+
+        <!-- BODY (expandable) -->
+        <div class="device-body" id="scan-{{ loop.index }}">
+
+            <!-- OPEN PORTS -->
+            <div class="section">
+                <h3>Open Ports ({{ scan.open_ports|length }})</h3>
+                {% if scan.open_ports %}
+                <table class="ports-table">
+                    <tr>
+                        <th>Port</th>
+                        <th>Service</th>
+                        <th>Risk Note</th>
+                    </tr>
+                    {% for port in scan.open_ports %}
+                    <tr>
+                        <td>
+                            <span class="{% if port in [23, 445, 3389, 5900, 6379, 9200, 27017, 3306, 1433] %}port-dangerous{% else %}port-number{% endif %}">
+                                {{ port }}
+                            </span>
+                        </td>
+                        <td>{{ scan.services.get(port|string, 'unknown') }}</td>
+                        <td>
+                            {% set descriptions = {
+                                23: "Telnet — unencrypted remote access",
+                                21: "FTP — unencrypted file transfer",
+                                22: "SSH — remote access",
+                                80: "HTTP — unencrypted web",
+                                443: "HTTPS — encrypted web",
+                                445: "SMB — ransomware target",
+                                3389: "RDP — remote desktop",
+                                5900: "VNC — remote desktop",
+                                3306: "MySQL — database",
+                                6379: "Redis — database",
+                                9200: "Elasticsearch — database",
+                                27017: "MongoDB — database",
+                                1433: "MSSQL — database",
+                                139: "NetBIOS — legacy Windows",
+                                135: "RPC — Windows remote calls"
+                            } %}
+                            <span class="port-warning">
+                                {{ descriptions.get(port, '—') }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </table>
+                {% else %}
+                <p class="no-issues">✓ No open ports detected</p>
+                {% endif %}
+            </div>
+
+            <!-- MISCONFIGURATIONS -->
+            <div class="section">
+                <h3>Misconfigurations ({{ scan.misconfigurations|length }})</h3>
+                {% if scan.misconfigurations %}
+                <div class="misconfig-list">
+                    {% for m in scan.misconfigurations %}
+                    <div class="misconfig-item {{ m.severity }}">
+                        <div class="misconfig-header">
+                            <span class="misconfig-type">{{ m.type }}</span>
+                            <span class="misconfig-severity sev-{{ m.severity }}">{{ m.severity }}</span>
+                        </div>
+                        <div class="misconfig-detail">{{ m.detail }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="no-issues">✓ No misconfigurations detected</p>
+                {% endif %}
+            </div>
+
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% else %}
+<div class="empty">
+    No scan results yet. The correlation engine will scan devices automatically on startup.
+</div>
+{% endif %}
+
+<script>
+    function toggleCard(bodyId, chevId) {
+        const body = document.getElementById(bodyId);
+        const chev = document.getElementById(chevId);
+        body.classList.toggle('open');
+        chev.classList.toggle('open');
+    }
+</script>
+
+</body>
+</html>
