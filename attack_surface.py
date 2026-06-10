@@ -4,8 +4,6 @@ from database import save_scan_result
 
 # -----------------------------
 # DANGEROUS PORTS
-# Ports that are inherently risky
-# if found open on a device
 # -----------------------------
 DANGEROUS_PORTS = {
     21:   "FTP - Unencrypted file transfer",
@@ -68,7 +66,6 @@ PORT_SEVERITY = {
 def check_misconfigurations(open_ports, services):
     misconfigs = []
 
-    # Telnet open — should never be open
     if 23 in open_ports:
         misconfigs.append({
             "type": "UNENCRYPTED_REMOTE_ACCESS",
@@ -76,7 +73,6 @@ def check_misconfigurations(open_ports, services):
             "detail": "Telnet (port 23) is open. Telnet transmits data in plain text including passwords. Replace with SSH immediately."
         })
 
-    # RDP exposed
     if 3389 in open_ports:
         misconfigs.append({
             "type": "REMOTE_DESKTOP_EXPOSED",
@@ -84,7 +80,6 @@ def check_misconfigurations(open_ports, services):
             "detail": "RDP (port 3389) is open. Remote Desktop is a common ransomware entry point. Restrict access with firewall rules."
         })
 
-    # SMB exposed
     if 445 in open_ports:
         misconfigs.append({
             "type": "SMB_EXPOSED",
@@ -92,7 +87,6 @@ def check_misconfigurations(open_ports, services):
             "detail": "SMB (port 445) is open. SMB is the attack vector for EternalBlue/WannaCry. Disable if not needed."
         })
 
-    # VNC exposed
     if 5900 in open_ports:
         misconfigs.append({
             "type": "VNC_EXPOSED",
@@ -100,7 +94,6 @@ def check_misconfigurations(open_ports, services):
             "detail": "VNC (port 5900) is open. VNC is often unencrypted and weakly authenticated."
         })
 
-    # Unencrypted web service
     if 80 in open_ports and 443 not in open_ports:
         misconfigs.append({
             "type": "HTTP_NO_HTTPS",
@@ -108,8 +101,14 @@ def check_misconfigurations(open_ports, services):
             "detail": "HTTP (port 80) is open but HTTPS (port 443) is not. Traffic is unencrypted."
         })
 
-    # Database ports exposed
-    for port, db_name in [(3306, "MySQL"), (5432, "PostgreSQL"), (27017, "MongoDB"), (6379, "Redis"), (9200, "Elasticsearch"), (1433, "MSSQL")]:
+    for port, db_name in [
+        (3306, "MySQL"),
+        (5432, "PostgreSQL"),
+        (27017, "MongoDB"),
+        (6379, "Redis"),
+        (9200, "Elasticsearch"),
+        (1433, "MSSQL")
+    ]:
         if port in open_ports:
             misconfigs.append({
                 "type": "DATABASE_EXPOSED",
@@ -117,7 +116,6 @@ def check_misconfigurations(open_ports, services):
                 "detail": f"{db_name} (port {port}) is exposed to the network. Databases should never be directly accessible."
             })
 
-    # FTP open
     if 21 in open_ports:
         misconfigs.append({
             "type": "FTP_EXPOSED",
@@ -125,7 +123,6 @@ def check_misconfigurations(open_ports, services):
             "detail": "FTP (port 21) is open. FTP transmits credentials in plain text. Use SFTP instead."
         })
 
-    # Legacy NetBIOS
     if 139 in open_ports:
         misconfigs.append({
             "type": "NETBIOS_EXPOSED",
@@ -141,7 +138,6 @@ def check_misconfigurations(open_ports, services):
 def calculate_attack_surface_score(open_ports, misconfigurations):
     score = 0
 
-    # Score based on port severity
     for port in open_ports:
         severity = PORT_SEVERITY.get(port, None)
         if severity == "CRITICAL":
@@ -153,7 +149,6 @@ def calculate_attack_surface_score(open_ports, misconfigurations):
         elif severity == "LOW":
             score += 5
 
-    # Score based on misconfigurations
     for m in misconfigurations:
         if m["severity"] == "CRITICAL":
             score += 30
@@ -162,7 +157,6 @@ def calculate_attack_surface_score(open_ports, misconfigurations):
         elif m["severity"] == "MEDIUM":
             score += 10
 
-    # Cap score at 100
     return min(score, 100)
 
 # -----------------------------
@@ -184,17 +178,13 @@ def score_to_threat_level(score):
 # MAIN SCAN FUNCTION
 # -----------------------------
 def scan_device(ip, mac):
-    print(f"  [SCAN] {ip} ({mac})")
+    print(f"  [NMAP] Scanning {ip} ({mac})")
     nm = nmap.PortScanner()
 
     try:
-        # -sV = service version detection
-        # -O  = OS detection
-        # -T4 = aggressive timing (faster)
-        # --top-ports 1000 = scan top 1000 most common ports
         nm.scan(hosts=ip, arguments="-sV -O -T4 --top-ports 1000")
     except Exception as e:
-        print(f"  [ERROR] Could not scan {ip}: {e}")
+        print(f"  [NMAP ERROR] Could not scan {ip}: {e}")
         return None
 
     open_ports = []
@@ -202,10 +192,9 @@ def scan_device(ip, mac):
     os_guess = "Unknown"
 
     if ip not in nm.all_hosts():
-        print(f"  [WARN] {ip} did not respond to scan")
+        print(f"  [NMAP WARN] {ip} did not respond to scan")
         return None
 
-    # Extract open ports and services
     for proto in nm[ip].all_protocols():
         for port in nm[ip][proto].keys():
             state = nm[ip][proto][port]["state"]
@@ -215,7 +204,6 @@ def scan_device(ip, mac):
                 service_version = nm[ip][proto][port].get("version", "")
                 services[port] = f"{service_name} {service_version}".strip()
 
-    # Extract OS guess
     try:
         os_matches = nm[ip]["osmatch"]
         if os_matches:
@@ -223,16 +211,12 @@ def scan_device(ip, mac):
     except (KeyError, IndexError):
         os_guess = "Unknown"
 
-    # Run misconfiguration checks
     misconfigurations = check_misconfigurations(open_ports, services)
-
-    # Calculate attack surface score
     score = calculate_attack_surface_score(open_ports, misconfigurations)
 
-    # Save to database
     save_scan_result(ip, mac, open_ports, services, os_guess, misconfigurations, score)
 
-    print(f"  [DONE] {ip} — {len(open_ports)} open ports, score: {score}")
+    print(f"  [NMAP DONE] {ip} — {len(open_ports)} open ports, score: {score}")
 
     return {
         "ip": ip,
@@ -257,7 +241,6 @@ def scan_all_devices(devices):
 
 
 if __name__ == "__main__":
-    # Quick test
-    result = scan_device("192.168.1.1", "aa:bb:cc:dd:ee:ff")
+    result = scan_device("192.168.105.1", "aa:bb:cc:dd:ee:ff")
     if result:
         print(json.dumps(result, indent=2))

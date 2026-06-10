@@ -31,6 +31,7 @@ def create_database():
             os_guess TEXT,
             misconfigurations TEXT DEFAULT '[]',
             attack_surface_score INTEGER DEFAULT 0,
+            cve_findings TEXT DEFAULT '[]',
             scanned_at TIMESTAMP
         )
     """)
@@ -190,7 +191,8 @@ def get_latest_scan(mac):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT ip, mac, open_ports, services, os_guess, misconfigurations, attack_surface_score, scanned_at
+        SELECT ip, mac, open_ports, services, os_guess, 
+               misconfigurations, attack_surface_score, cve_findings, scanned_at
         FROM scan_results
         WHERE mac = ?
         ORDER BY scanned_at DESC
@@ -208,7 +210,8 @@ def get_latest_scan(mac):
         "os_guess": row[4],
         "misconfigurations": json.loads(row[5]),
         "attack_surface_score": row[6],
-        "scanned_at": row[7]
+        "cve_findings": json.loads(row[7]),
+        "scanned_at": row[8]
     }
 
 def get_all_scan_results():
@@ -328,6 +331,32 @@ def get_correlation_stats():
         "high": high,
         "medium": medium
     }
+
+def save_cve_findings(mac, cve_findings):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE scan_results
+        SET cve_findings = ?
+        WHERE mac = ?
+    """, (json.dumps(cve_findings), mac))
+    conn.commit()
+    conn.close()
+
+def get_cve_findings(mac):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT cve_findings FROM scan_results
+        WHERE mac = ?
+        ORDER BY scanned_at DESC
+        LIMIT 1
+    """, (mac,))
+    row = cursor.fetchone()
+    conn.close()
+    if not row:
+        return []
+    return json.loads(row[0])
 
 # -----------------------------
 # OPTIONAL TEST RUN
